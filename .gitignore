@@ -1,0 +1,5 @@
+data/*
+runs/*
+wsiprocess/*
+utils/__pycache__/*
+.vscode
