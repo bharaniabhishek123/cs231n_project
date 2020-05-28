@@ -2,20 +2,20 @@ import argparse
 import logging
 import os
 import sys
-
+import copy
 import numpy as np
 import pandas as pd 
 import torch
 import torch.nn as nn
 from torch import optim
 from tqdm import tqdm
-
+import time 
 from torch.utils.tensorboard import SummaryWriter
 from utils.dataset import BasicDataset
 from torch.utils.data import DataLoader, random_split
 import torch.nn.functional as F
 from torchvision import datasets, models, transforms
-
+from torch.optim import lr_scheduler
 
 csv_path = '/Users/abharani/Documents/myworkspace/cs231n_project/data/train.csv'
 small_csv_path = '/Users/abharani/Documents/myworkspace/cs231n_project/data/small_train.csv'
@@ -23,15 +23,15 @@ image_dir = '/Users/abharani/Documents/myworkspace/cs231n_project/data/train_ima
 dir_checkpoint = 'checkpoints/'
 
 
-def eval_model(model, data_loader, device):
+def eval_model(model, val_loader, device):
     """Evaluation without the densecrf with the dice coefficient"""
     model.eval()
 
-    n_val = len(loader)  # the number of batch
+    n_val = len(val_loader)  # the number of batch
     tot = 0
 
     with tqdm(total=n_val, desc='Validation round', unit='batch', leave=False) as pbar:
-        for batch in data_loader:
+        for batch in val_loader:
             imgs, true_label = batch['image'], batch['isup_grade']
             imgs = imgs.to(device=device, dtype=torch.float32)
             true_label = true_label.to(device=device, dtype=torch.long)
@@ -65,6 +65,10 @@ def train_model(model,
     train_loader = DataLoader(train, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True)
     val_loader = DataLoader(val, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True, drop_last=True)
 
+    dataloaders = {'train': train_loader, 'val':val_loader}
+
+    dataset_sizes = {'train':n_train, 'val':n_val}
+
     writer = SummaryWriter(comment=f'LR_{lr}_BS_{batch_size}')
     global_step = 0
 
@@ -78,68 +82,99 @@ def train_model(model,
         Device:          {device.type}
     ''')
 
-    optimizer = optim.RMSprop(model.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min' , patience=2)
+    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    # optimizer = optim.RMSprop(model.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
+    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min' , patience=2)
     criterion = nn.CrossEntropyLoss()
+    scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
+
+    best_model_wts = copy.deepcopy(model.state_dict())
+    best_acc = 0.0
 
     for epoch in range(epochs):
-        model.train()
+            logging.info('Epoch {}/{}'.format(epoch, epochs - 1))
+            
+            for phase in ['train', 'val']:
+                if phase == 'train':                   
+                    model.train()
+                else:
+                    model.eval()
 
-        epoch_loss = 0
-        with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
-            for batch in train_loader:
-                imgs = batch['image']
-                true_label = batch['isup_grade']
+                running_loss = 0
+                running_corrects = 0
 
-                imgs = torch.reshape(imgs,(imgs.shape[0],imgs.shape[3],imgs.shape[1],imgs.shape[2])) #  inputs.reshape [N, C, W, H]
+                for batch in dataloaders[phase]:
 
-                # assert imgs.shape[1] == net.n_channels, \
-                #     f'Network has been defined with {net.n_channels} input channels, ' \
-                #     f'but loaded images have {imgs.shape[1]} channels. Please check that ' \
-                #     'the images are loaded correctly.'
+                    imgs = batch['image'].to(device, dtype=torch.float32)
+                    imgs = torch.reshape(imgs,(imgs.shape[0],imgs.shape[3],imgs.shape[1],imgs.shape[2])) #  inputs.reshape [N, C, W, H]
 
-                imgs = imgs.to(device=device, dtype=torch.float32)
-                true_label = true_label.to(device=device, dtype=torch.long)
+                    true_label = batch['isup_grade'].to(device=device, dtype=torch.long)
 
-                pred_label = model(imgs)
-                loss = criterion(pred_label, true_label)
-                epoch_loss += loss.item()
-                writer.add_scalar('Loss/train', loss.item(), global_step)
+                    # zero the parameter gradients
+                    optimizer.zero_grad()
 
-                pbar.set_postfix(**{'loss (batch)': loss.item()})
+                    # forward
+                    with torch.set_grad_enabled(phase=='train'):
+                        outputs = model(imgs)
+                        _, pred_label = torch.max(outputs, 1)
 
-                optimizer.zero_grad()
-                loss.backward()
-                nn.utils.clip_grad_value_(model.parameters(), 0.1)
-                optimizer.step()
+                        loss = criterion(outputs, true_label)
 
-                pbar.update(imgs.shape[0])
+                        writer.add_scalar('Loss/train', loss.item(), global_step)
+
+                        if phase == 'train':
+                            loss.backward()
+                            optimizer.step()
+
+                    running_loss += loss.item() * imgs.size(0) # batch_size 
+                    running_corrects += torch.sum(pred_label == true_label.data) 
+
+                if phase== 'train':
+                    scheduler.step()
+
+                epoch_loss = running_loss / dataset_sizes[phase]
+                epoch_acc = running_corrects.double() / dataset_sizes[phase]
+                logging.info('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
+
+                writer.add_scalar(phase + "loss", epoch_loss, global_step)
+                writer.add_scalar(phase + "acc", epoch_acc, global_step)
+
+                # nn.utils.clip_grad_value_(model.parameters(), 0.1)
+                # deep copy the model
+                if phase == 'val' and epoch_acc > best_acc:
+                    best_acc = epoch_acc
+                    best_model_wts = copy.deepcopy(model.state_dict())                    
+                    
                 global_step += 1
-                if global_step % (len(dataset) // (10 * batch_size)) == 0:
-                    for tag, value in model.named_parameters():
-                        tag = tag.replace('.', '/')
-                        writer.add_histogram('weights/' + tag, value.data.cpu().numpy(), global_step)
-                        writer.add_histogram('grads/' + tag, value.grad.data.cpu().numpy(), global_step)
-                    val_score = eval_model(model, val_loader, device)
-                    scheduler.step(val_score)
-                    writer.add_scalar('learning_rate', optimizer.param_groups[0]['lr'], global_step)
 
-                    logging.info('Validation cross entropy: {}'.format(val_score))
-                    writer.add_scalar('Loss/test', val_score, global_step)
+                    # if global_step % (len(dataset) // (10 * batch_size)) == 0:
+                    #     for tag, value in model.named_parameters():
+                    #         tag = tag.replace('.', '/')
+                    #         writer.add_histogram('weights/' + tag, value.data.cpu().numpy(), global_step)
+                    #         writer.add_histogram('grads/' + tag, value.grad.data.cpu().numpy(), global_step)
+                    #     val_score = eval_model(model, val_loader, device)
+                    #     scheduler.step(val_score)
+                    #     writer.add_scalar('learning_rate', optimizer.param_groups[0]['lr'], global_step)
 
-                    writer.add_images('images', imgs, global_step)
+                    #     logging.info('Validation cross entropy: {}'.format(val_score))
+                    #     writer.add_scalar('Loss/test', val_score, global_step)
+                    #     writer.add_images('images', imgs, global_step)
+       
+    
+                
 
-        if save_cp:
-            try:
-                os.mkdir(dir_checkpoint)
-                logging.info('Created checkpoint directory')
-            except OSError:
-                pass
-            torch.save(model.state_dict(),
-                       dir_checkpoint + f'CP_epoch{epoch + 1}.pth')
-            logging.info(f'Checkpoint {epoch + 1} saved !')
-
+            if save_cp:
+                try:
+                    os.mkdir(dir_checkpoint)
+                    logging.info('Created checkpoint directory')
+                except OSError:
+                    pass
+                torch.save(model.state_dict(),
+                        dir_checkpoint + f'CP_epoch{epoch + 1}.pth')
+                logging.info(f'Checkpoint {epoch + 1} saved !')
     writer.close()
+
+        
 
 
 
