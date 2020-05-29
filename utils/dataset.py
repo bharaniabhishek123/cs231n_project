@@ -21,13 +21,14 @@ class BasicDataset(Dataset):
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """        
-        data_frame = pd.read_csv(csv_file)
+        self.data_frame = pd.read_csv(csv_file)
 
         ## Local images only  
         
-        local_files_df = DataFrame([os.path.splitext(filename)[0] for filename in os.listdir('/Users/abharani/Documents/myworkspace/cs231n_project/data/train_images/') if filename.endswith(".tiff")], columns=["image_id"])
-        self.data_frame = local_files_df.join(data_frame.set_index('image_id'), on='image_id')
-        ##
+        # local_files_df = DataFrame([os.path.splitext(filename)[0] for filename in os.listdir('/Users/abharani/Documents/myworkspace/cs231n_project/data/train_images/') if filename.endswith(".tiff")], columns=["image_id"])
+        # self.data_frame = local_files_df.join(data_frame.set_index('image_id'), on='image_id')
+        # ##
+
         self.root_dir = root_dir
         self.transform = transform
         logging.info('Creating dataset with {} examples'.format(len(self.data_frame)))

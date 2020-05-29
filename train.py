@@ -16,10 +16,13 @@ from torch.utils.data import DataLoader, random_split
 import torch.nn.functional as F
 from torchvision import datasets, models, transforms
 from torch.optim import lr_scheduler
+import torchvision
 
-csv_path = '/Users/abharani/Documents/myworkspace/cs231n_project/data/train.csv'
-small_csv_path = '/Users/abharani/Documents/myworkspace/cs231n_project/data/small_train.csv'
-image_dir = '/Users/abharani/Documents/myworkspace/cs231n_project/data/train_images/'
+
+
+csv_path = '/project/data/train.csv'
+small_csv_path = '/project/data/small_train.csv'
+image_dir = '/project/data/train_images/'
 dir_checkpoint = 'checkpoints/'
 
 
@@ -57,7 +60,7 @@ def train_model(model,
               save_cp=True
               ):
 
-    dataset = BasicDataset(csv_file=csv_path,
+    dataset = BasicDataset(csv_file=small_csv_path,
                                     root_dir=image_dir)
     n_val = int(len(dataset) * val_percent)
     n_train = len(dataset) - n_val
@@ -92,86 +95,97 @@ def train_model(model,
     best_acc = 0.0
 
     for epoch in range(epochs):
-            logging.info('Epoch {}/{}'.format(epoch, epochs - 1))
+        logging.info('Epoch {}/{}'.format(epoch, epochs - 1))
             
-            for phase in ['train', 'val']:
-                if phase == 'train':                   
-                    model.train()
-                else:
-                    model.eval()
+        for phase in ['train', 'val']:
+            if phase == 'train':                   
+                model.train()
+            else:
+                model.eval()
 
-                running_loss = 0
-                running_corrects = 0
+            running_loss = 0
+            running_corrects = 0
 
-                for batch in dataloaders[phase]:
+            for batch in dataloaders[phase]:
 
-                    imgs = batch['image'].to(device, dtype=torch.float32)
-                    imgs = torch.reshape(imgs,(imgs.shape[0],imgs.shape[3],imgs.shape[1],imgs.shape[2])) #  inputs.reshape [N, C, W, H]
+                imgs = batch['image'].to(device, dtype=torch.float32)
+                imgs = torch.reshape(imgs,(imgs.shape[0],imgs.shape[3],imgs.shape[1],imgs.shape[2])) #  inputs.reshape [N, C, W, H]
 
-                    true_label = batch['isup_grade'].to(device=device, dtype=torch.long)
+                true_label = batch['isup_grade'].to(device=device, dtype=torch.long)
 
-                    # zero the parameter gradients
-                    optimizer.zero_grad()
+                img_grid = torchvision.utils.make_grid(imgs)
+                writer.add_image("train_img" , img_grid)
+                # zero the parameter gradients
+                optimizer.zero_grad()
 
-                    # forward
-                    with torch.set_grad_enabled(phase=='train'):
-                        outputs = model(imgs)
-                        _, pred_label = torch.max(outputs, 1)
+                # forward
+                with torch.set_grad_enabled(phase=='train'):
+                    outputs = model(imgs)
+                    _, pred_label = torch.max(outputs, 1)
 
-                        loss = criterion(outputs, true_label)
+                    loss = criterion(outputs, true_label)
 
-                        writer.add_scalar('Loss/train', loss.item(), global_step)
+                    writer.add_scalar('Loss/train', loss.item(), global_step)
 
-                        if phase == 'train':
-                            loss.backward()
-                            optimizer.step()
+                    if phase == 'train':
+                        loss.backward()
+                        optimizer.step()
 
-                    running_loss += loss.item() * imgs.size(0) # batch_size 
-                    running_corrects += torch.sum(pred_label == true_label.data) 
+                writer.add_graph(model, imgs)
+                writer.close()
+                sys.exit()
 
-                if phase== 'train':
-                    scheduler.step()
+                running_loss += loss.item() * imgs.size(0) # batch_size 
+                # running_corrects += torch.sum(pred_label == true_label.data) 
+                running_corrects += torch.sum(pred_label == true_label.data)
 
-                epoch_loss = running_loss / dataset_sizes[phase]
-                epoch_acc = running_corrects.double() / dataset_sizes[phase]
-                logging.info('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
+            if phase == 'train':
+                scheduler.step()
 
-                writer.add_scalar(phase + "loss", epoch_loss, global_step)
-                writer.add_scalar(phase + "acc", epoch_acc, global_step)
+            epoch_loss = running_loss / dataset_sizes[phase]
+            epoch_acc = running_corrects.double() / dataset_sizes[phase]
 
-                # nn.utils.clip_grad_value_(model.parameters(), 0.1)
-                # deep copy the model
-                if phase == 'val' and epoch_acc > best_acc:
-                    best_acc = epoch_acc
-                    best_model_wts = copy.deepcopy(model.state_dict())                    
-                    
-                global_step += 1
+            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
+                phase, epoch_loss, epoch_acc))
+            writer.add_scalar(phase + "loss", epoch_loss, global_step)
+            writer.add_scalar(phase + "acc", epoch_acc, global_step)
 
-                    # if global_step % (len(dataset) // (10 * batch_size)) == 0:
-                    #     for tag, value in model.named_parameters():
-                    #         tag = tag.replace('.', '/')
-                    #         writer.add_histogram('weights/' + tag, value.data.cpu().numpy(), global_step)
-                    #         writer.add_histogram('grads/' + tag, value.grad.data.cpu().numpy(), global_step)
-                    #     val_score = eval_model(model, val_loader, device)
-                    #     scheduler.step(val_score)
-                    #     writer.add_scalar('learning_rate', optimizer.param_groups[0]['lr'], global_step)
 
-                    #     logging.info('Validation cross entropy: {}'.format(val_score))
-                    #     writer.add_scalar('Loss/test', val_score, global_step)
-                    #     writer.add_images('images', imgs, global_step)
+
+
+            # nn.utils.clip_grad_value_(model.parameters(), 0.1)
+            # deep copy the model
+            if phase == 'val' and epoch_acc > best_acc:
+                best_acc = epoch_acc
+                best_model_wts = copy.deepcopy(model.state_dict())                    
+                
+            global_step += 1
+
+                # if global_step % (len(dataset) // (10 * batch_size)) == 0:
+                #     for tag, value in model.named_parameters():
+                #         tag = tag.replace('.', '/')
+                #         writer.add_histogram('weights/' + tag, value.data.cpu().numpy(), global_step)
+                #         writer.add_histogram('grads/' + tag, value.grad.data.cpu().numpy(), global_step)
+                #     val_score = eval_model(model, val_loader, device)
+                #     scheduler.step(val_score)
+                #     writer.add_scalar('learning_rate', optimizer.param_groups[0]['lr'], global_step)
+
+                #     logging.info('Validation cross entropy: {}'.format(val_score))
+                #     writer.add_scalar('Loss/test', val_score, global_step)
+                #     writer.add_images('images', imgs, global_step)
        
     
                 
 
-            if save_cp:
-                try:
-                    os.mkdir(dir_checkpoint)
-                    logging.info('Created checkpoint directory')
-                except OSError:
-                    pass
-                torch.save(model.state_dict(),
-                        dir_checkpoint + f'CP_epoch{epoch + 1}.pth')
-                logging.info(f'Checkpoint {epoch + 1} saved !')
+        if save_cp:
+            try:
+                os.mkdir(dir_checkpoint)
+                logging.info('Created checkpoint directory')
+            except OSError:
+                pass
+            torch.save(model.state_dict(),
+                       dir_checkpoint + f'CP_epoch{epoch + 1}.pth')
+            logging.info(f'Checkpoint {epoch + 1} saved !')
     writer.close()
 
         
