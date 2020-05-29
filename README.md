@@ -38,3 +38,9 @@ ssh -NfL localhost:8898:localhost:6000 user@remote
 
 
 gcloud compute ssh torch-vm-vm --zone=us-west1-b -- -NfL 6006:localhost:6006
+
+
+### Papers read and learnings 
+
+1. GLEASON GRADING OF HISTOLOGY PROSTATE IMAGES THROUGH SEMANTIC SEGMENTATION VIA RESIDUAL U-NET (https://arxiv.org/pdf/2005.11368v1.pdf)
+
