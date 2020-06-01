@@ -132,8 +132,6 @@ def train_model(model,
                         optimizer.step()
 
                 writer.add_graph(model, imgs)
-                writer.close()
-                sys.exit()
 
                 running_loss += loss.item() * imgs.size(0) # batch_size 
                 # running_corrects += torch.sum(pred_label == true_label.data) 
