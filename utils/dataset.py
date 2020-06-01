@@ -1,3 +1,4 @@
+import os 
 from os.path import splitext
 from os import listdir
 import numpy as np
@@ -12,8 +13,11 @@ import logging
 from PIL import Image
 
 
+root_dir = os.getenv('CS231n_ROOT_DIR')
+data_dir = os.getenv('CS231n_DATA_DIR')
+
 class BasicDataset(Dataset):
-    def __init__(self, csv_file, root_dir, transform=None):
+    def __init__(self, csv_file, data_dir, transform=None):
         """
         Args:
             csv_file (string): Path to the csv file with annotations.
@@ -29,7 +33,7 @@ class BasicDataset(Dataset):
         # self.data_frame = local_files_df.join(data_frame.set_index('image_id'), on='image_id')
         # ##
 
-        self.root_dir = root_dir
+        self.data_dir = data_dir
         self.transform = transform
         logging.info('Creating dataset with {} examples'.format(len(self.data_frame)))
         
@@ -51,9 +55,7 @@ class BasicDataset(Dataset):
     def __getitem__(self, idx):
         
         image_id = self.data_frame.iloc[idx]['image_id']
-        
-        image_file_path = os.path.join(self.root_dir,image_id + ".tiff")
-        
+        image_file_path = os.path.join(os.path.join(self.data_dir,'train_images'),image_id + ".tiff")
         image = skimage.io.MultiImage(image_file_path)[-1]
         image = np.array(image)
 
