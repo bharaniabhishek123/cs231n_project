@@ -7,3 +7,4 @@ checkpoints/*
 move_images.sh
 INTERRUPTED.pth
 input_tiff.txt
+.idea 
