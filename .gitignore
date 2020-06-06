@@ -6,5 +6,7 @@ utils/__pycache__/*
 checkpoints/*
 utils/move_images.sh
 INTERRUPTED.pth
-utils/input_tiff.txt
+input_tiff.txt
 .idea 
+glued_images/data/*
+notebooks/runs/*
