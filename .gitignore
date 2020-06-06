@@ -4,7 +4,7 @@ wsiprocess/*
 utils/__pycache__/*
 .vscode
 checkpoints/*
-move_images.sh
+utils/move_images.sh
 INTERRUPTED.pth
-input_tiff.txt
+utils/input_tiff.txt
 .idea 
