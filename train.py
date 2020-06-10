@@ -27,135 +27,135 @@ small_csv_path = os.path.join(data_dir,'small_train.csv')
 tiny_csv_path = os.path.join(data_dir,'tiny_train.csv')
 dir_checkpoint = os.path.join(root_dir, 'checkpoints')
 
-# def train_model(model,             
-#               device,
-#               epochs=5,
-#               batch_size=1,
-#               lr=0.001,
-#               val_percent=0.1,
-#               save_cp=True
-#               ):
+def train_model(model,
+              device,
+              epochs=5,
+              batch_size=1,
+              lr=0.001,
+              val_percent=0.1,
+              save_cp=True
+              ):
 
-#     dataset = BasicDataset(csv_file=tiny_csv_path,
-#                                     data_dir=data_dir)
-#     n_val = int(len(dataset) * val_percent)
-#     n_train = len(dataset) - n_val
-#     train, val = random_split(dataset, [n_train, n_val])
-#     train_loader = DataLoader(train, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True)
-#     val_loader = DataLoader(val, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True, drop_last=True)
+    dataset = BasicDataset(csv_file=tiny_csv_path,
+                                    data_dir=data_dir)
+    n_val = int(len(dataset) * val_percent)
+    n_train = len(dataset) - n_val
+    train, val = random_split(dataset, [n_train, n_val])
+    train_loader = DataLoader(train, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True)
+    val_loader = DataLoader(val, batch_size=batch_size, shuffle=False, num_workers=8, pin_memory=True, drop_last=True)
 
-#     dataloaders = {'train': train_loader, 'val':val_loader}
+    dataloaders = {'train': train_loader, 'val':val_loader}
 
-#     dataset_sizes = {'train':n_train, 'val':n_val}
+    dataset_sizes = {'train':n_train, 'val':n_val}
 
-#     # default `log_dir` is "runs" - we'll be more specific here
-#     writer = SummaryWriter('runs/experiment_1')
-#     global_step = 0
+    # default `log_dir` is "runs" - we'll be more specific here
+    writer = SummaryWriter('runs/experiment_1')
+    global_step = 0
 
-#     logging.info(f'''Starting training:
-#         Epochs:          {epochs}
-#         Batch size:      {batch_size}
-#         Learning rate:   {lr}
-#         Training size:   {n_train}
-#         Validation size: {n_val}
-#         Checkpoints:     {save_cp}
-#         Device:          {device.type}
-#     ''')
+    logging.info(f'''Starting training:
+        Epochs:          {epochs}
+        Batch size:      {batch_size}
+        Learning rate:   {lr}
+        Training size:   {n_train}
+        Validation size: {n_val}
+        Checkpoints:     {save_cp}
+        Device:          {device.type}
+    ''')
 
-#     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
-#     # optimizer = optim.RMSprop(model.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
-#     # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min' , patience=2)
-#     criterion = nn.CrossEntropyLoss()
-#     scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
+    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    # optimizer = optim.RMSprop(model.parameters(), lr=lr, weight_decay=1e-8, momentum=0.9)
+    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min' , patience=2)
+    criterion = nn.CrossEntropyLoss()
+    scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
-#     best_model_wts = copy.deepcopy(model.state_dict())
-#     best_acc = 0.0
+    best_model_wts = copy.deepcopy(model.state_dict())
+    best_acc = 0.0
 
-#     for epoch in range(epochs):
-#         logging.info('Epoch {}/{}'.format(epoch, epochs - 1))
+    for epoch in range(epochs):
+        logging.info('Epoch {}/{}'.format(epoch, epochs - 1))
             
-#         for phase in ['train', 'val']:
-#             if phase == 'train':                   
-#                 model.train()
-#             else:
-#                 model.eval()
+        for phase in ['train', 'val']:
+            if phase == 'train':
+                model.train()
+            else:
+                model.eval()
 
-#             running_loss = 0
-#             running_corrects = 0
+            running_loss = 0
+            running_corrects = 0
 
-#             for batch in dataloaders[phase]:
+            for batch in dataloaders[phase]:
 
-#                 imgs = batch['image'].to(device, dtype=torch.float32)
-#                 imgs = torch.reshape(imgs,(imgs.shape[0],imgs.shape[3],imgs.shape[1],imgs.shape[2])) #  inputs.reshape [N, C, W, H]
+                imgs = batch['image'].to(device, dtype=torch.float32)
+                imgs = torch.reshape(imgs,(imgs.shape[0],imgs.shape[3],imgs.shape[1],imgs.shape[2])) #  inputs.reshape [N, C, W, H]
 
-#                 true_label = batch['isup_grade'].to(device=device, dtype=torch.long)
+                true_label = batch['isup_grade'].to(device=device, dtype=torch.long)
 
-#                 img_grid = torchvision.utils.make_grid(imgs)
-#                 writer.add_image("train_img" , img_grid)
-#                 # zero the parameter gradients
-#                 optimizer.zero_grad()
+                img_grid = torchvision.utils.make_grid(imgs)
+                writer.add_image("train_img" , img_grid)
+                # zero the parameter gradients
+                optimizer.zero_grad()
 
-#                 # forward
-#                 with torch.set_grad_enabled(phase=='train'):
-#                     outputs = model(imgs)
-#                     _, pred_label = torch.max(outputs, 1)
+                # forward
+                with torch.set_grad_enabled(phase=='train'):
+                    outputs = model(imgs)
+                    _, pred_label = torch.max(outputs, 1)
 
-#                     loss = criterion(outputs, true_label)
+                    loss = criterion(outputs, true_label)
 
-#                     writer.add_scalar('Training Loss', loss.item(), global_step)
+                    writer.add_scalar('Training Loss', loss.item(), global_step)
 
-#                     if phase == 'train':
-#                         loss.backward()
-#                         optimizer.step()
+                    if phase == 'train':
+                        loss.backward()
+                        optimizer.step()
 
-#                 writer.add_graph(model, imgs)
+                writer.add_graph(model, imgs)
 
-#                 running_loss += loss.item() * imgs.size(0) # batch_size 
-#                 # running_corrects += torch.sum(pred_label == true_label.data) 
-#                 running_corrects += torch.sum(pred_label == true_label.data)
+                running_loss += loss.item() * imgs.size(0) # batch_size
+                # running_corrects += torch.sum(pred_label == true_label.data)
+                running_corrects += torch.sum(pred_label == true_label.data)
 
-#             if phase == 'train':
-#                 scheduler.step()
+            if phase == 'train':
+                scheduler.step()
 
-#             epoch_loss = running_loss / dataset_sizes[phase]
-#             epoch_acc = running_corrects.double() / dataset_sizes[phase]
+            epoch_loss = running_loss / dataset_sizes[phase]
+            epoch_acc = running_corrects.double() / dataset_sizes[phase]
 
-#             print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-#                 phase, epoch_loss, epoch_acc))
-#             writer.add_scalar(phase + "loss", epoch_loss, global_step)
-#             writer.add_scalar(phase + "acc", epoch_acc, global_step)
-
-
+            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
+                phase, epoch_loss, epoch_acc))
+            writer.add_scalar(phase + "loss", epoch_loss, global_step)
+            writer.add_scalar(phase + "acc", epoch_acc, global_step)
 
 
-#             # nn.utils.clip_grad_value_(model.parameters(), 0.1)
-#             # deep copy the model
-#             if phase == 'val' and epoch_acc > best_acc:
-#                 best_acc = epoch_acc
-#                 best_model_wts = copy.deepcopy(model.state_dict())                    
+
+
+            # nn.utils.clip_grad_value_(model.parameters(), 0.1)
+            # deep copy the model
+            if phase == 'val' and epoch_acc > best_acc:
+                best_acc = epoch_acc
+                best_model_wts = copy.deepcopy(model.state_dict())
                 
-#             global_step += 1
+            global_step += 1
 
 
-#             if global_step % (len(dataset) // (10 * batch_size)) == 0:
-#                 for tag, value in model.named_parameters():
-#                     tag = tag.replace('.', '/')
-#                     writer.add_histogram('weights/' + tag, value.data.cpu().numpy(), global_step)
-#                     writer.add_histogram('grads/' + tag, value.grad.data.cpu().numpy(), global_step)
-#                 val_score = eval_model(model, val_loader, device)
-#                 scheduler.step(val_score)
-#                 writer.add_scalar('learning_rate', optimizer.param_groups[0]['lr'], global_step)    
+            if global_step % (len(dataset) // (10 * batch_size)) == 0:
+                for tag, value in model.named_parameters():
+                    tag = tag.replace('.', '/')
+                    writer.add_histogram('weights/' + tag, value.data.cpu().numpy(), global_step)
+                    writer.add_histogram('grads/' + tag, value.grad.data.cpu().numpy(), global_step)
+                val_score = eval_model(model, val_loader, device)
+                scheduler.step(val_score)
+                writer.add_scalar('learning_rate', optimizer.param_groups[0]['lr'], global_step)
 
-#         if save_cp:
-#             try:
-#                 os.mkdir(dir_checkpoint)
-#                 logging.info('Created checkpoint directory')
-#             except OSError:
-#                 pass
-#             torch.save(model.state_dict(),
-#                        dir_checkpoint + f'CP_epoch{epoch + 1}.pth')
-#             logging.info(f'Checkpoint {epoch + 1} saved !')
-#     writer.close()
+        if save_cp:
+            try:
+                os.mkdir(dir_checkpoint)
+                logging.info('Created checkpoint directory')
+            except OSError:
+                pass
+            torch.save(model.state_dict(),
+                       dir_checkpoint + f'CP_epoch{epoch + 1}.pth')
+            logging.info(f'Checkpoint {epoch + 1} saved !')
+    writer.close()
 
 
 
@@ -342,12 +342,12 @@ if __name__ == '__main__':
         )
         logging.info(f'Model loaded from {args.load}')
 
-    net.to(device=device)
+    model.to(device=device)
     # faster convolutions, but more memory
     # cudnn.benchmark = True
 
     try:
-        new_train_model(model=model_ft,
+        train_model(model=model_ft,
                   epochs=args.epochs,
                   batch_size=args.batchsize,
                   lr=args.lr,
